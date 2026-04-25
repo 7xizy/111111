@@ -1,2126 +1,715 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🦜 鳥類圖鑑 - 生態攝影管理中心</title>
-
-    <!-- exifr 庫：支援讀取 JPEG / RAW (ARW, CR2, CR3, NEF 等) 的 EXIF 元資料 -->
-    <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js">
-    </script>
-    <!-- Google API 庫（用於 Google Drive 整合） -->
-    <script src="https://apis.google.com/js/api.js" async defer>
-    </script>
-
-    <style>
-        :root {
-            --bg: #f7f3eb;
-            --surface: #ffffff;
-            --surface-hover: #fefcf8;
-            --text: #3e3a34;
-            --text-secondary: #6b655c;
-            --text-muted: #9a9489;
-            --border: #e0d9cd;
-            --border-light: #ede6da;
-            --accent: #5a8a6e;
-            --accent-hover: #4a7359;
-            --accent-light: #e8f2ea;
-            --accent-warm: #c0854a;
-            --accent-warm-light: #fdf3e4;
-            --danger: #b85450;
-            --danger-light: #fce8e6;
-            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
-            --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
-            --shadow-drag: 0 20px 50px rgba(0, 0, 0, 0.18), 0 8px 20px rgba(0, 0, 0, 0.1);
-            --radius-sm: 8px;
-            --radius: 12px;
-            --radius-lg: 16px;
-            --radius-xl: 20px;
-            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            --sidebar-width: 280px;
-            --detail-width: 380px;
-            --topbar-height: 60px;
-            --font: 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: var(--font);
-            background: var(--bg);
-            color: var(--text);
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            user-select: none;
-            -webkit-user-select: none;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        /* ============ 頂部導航欄 ============ */
-        .topbar {
-            height: var(--topbar-height);
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            gap: 16px;
-            z-index: 100;
-            box-shadow: var(--shadow-sm);
-            flex-shrink: 0;
-        }
-        .topbar .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--accent);
-            letter-spacing: 0.5px;
-            white-space: nowrap;
-            cursor: default;
-        }
-        .topbar .logo .icon {
-            font-size: 1.6rem;
-            animation: birdBounce 2s ease-in-out infinite;
-        }
-        @keyframes birdBounce {
-            0%,
-            100% {
-                transform: translateY(0);
-            }
-            30% {
-                transform: translateY(-6px);
-            }
-            50% {
-                transform: translateY(0);
-            }
-            70% {
-                transform: translateY(-3px);
-            }
-        }
-        .topbar .search-wrap {
-            flex: 1;
-            max-width: 420px;
-            position: relative;
-        }
-        .topbar .search-wrap input {
-            width: 100%;
-            padding: 9px 16px 9px 40px;
-            border: 2px solid var(--border);
-            border-radius: 50px;
-            font-size: 0.9rem;
-            font-family: var(--font);
-            background: var(--bg);
-            transition: var(--transition);
-            color: var(--text);
-        }
-        .topbar .search-wrap input:focus {
-            outline: none;
-            border-color: var(--accent);
-            background: var(--surface);
-            box-shadow: 0 0 0 4px var(--accent-light);
-        }
-        .topbar .search-wrap .search-icon {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 1rem;
-            color: var(--text-muted);
-            pointer-events: none;
-        }
-        .topbar .stats-pill {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--accent-light);
-            color: var(--accent);
-            padding: 7px 14px;
-            border-radius: 50px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-        .topbar .btn {
-            padding: 8px 16px;
-            border-radius: 50px;
-            border: 2px solid var(--border);
-            background: var(--surface);
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 600;
-            font-family: var(--font);
-            transition: var(--transition);
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--text);
-        }
-        .topbar .btn:hover {
-            background: var(--bg);
-            border-color: var(--accent);
-        }
-        .topbar .btn.btn-drive {
-            background: #1a73e8;
-            color: #fff;
-            border-color: #1a73e8;
-            font-weight: 600;
-        }
-        .topbar .btn.btn-drive:hover {
-            background: #1557b0;
-            border-color: #1557b0;
-            box-shadow: 0 2px 8px rgba(26, 115, 232, 0.3);
-        }
-        .topbar .btn.btn-drive.connected {
-            background: #e8f5e9;
-            color: #2e7d32;
-            border-color: #a5d6a7;
-            pointer-events: none;
-        }
-        .topbar .btn.btn-upload {
-            background: var(--accent-warm-light);
-            color: var(--accent-warm);
-            border-color: #e8cfa0;
-        }
-        .topbar .btn.btn-upload:hover {
-            background: #fdf0db;
-            border-color: var(--accent-warm);
-        }
-
-        /* ============ 主佈局 ============ */
-        .main-layout {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* ============ 左側邊欄 ============ */
-        .sidebar {
-            width: var(--sidebar-width);
-            background: var(--surface);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            flex-shrink: 0;
-            padding: 16px 12px;
-            gap: 6px;
-            z-index: 50;
-            transition: var(--transition-slow);
-        }
-        .sidebar.collapsed {
-            width: 0;
-            padding: 0;
-            overflow: hidden;
-            border-right: none;
-        }
-        .sidebar .section-title {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: var(--text-muted);
-            padding: 10px 10px 4px;
-            font-weight: 700;
-            cursor: default;
-        }
-        .sidebar .category-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 14px;
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            transition: var(--transition);
-            font-size: 0.9rem;
-            font-weight: 500;
-            color: var(--text);
-            position: relative;
-            border: 2px solid transparent;
-            min-height: 44px;
-        }
-        .sidebar .category-item:hover {
-            background: var(--bg);
-            border-color: var(--border-light);
-        }
-        .sidebar .category-item.active {
-            background: var(--accent-light);
-            color: var(--accent);
-            font-weight: 700;
-            border-color: var(--accent);
-        }
-        .sidebar .category-item.drag-over {
-            background: var(--accent-warm-light) !important;
-            border-color: var(--accent-warm) !important;
-            box-shadow: 0 0 0 6px var(--accent-warm-light);
-            transform: scale(1.03);
-            z-index: 10;
-            animation: pulseBorder 0.8s ease-in-out infinite;
-        }
-        @keyframes pulseBorder {
-            0%,
-            100% {
-                box-shadow: 0 0 0 4px var(--accent-warm-light);
-            }
-            50% {
-                box-shadow: 0 0 0 12px transparent;
-            }
-        }
-        .sidebar .category-item .badge {
-            margin-left: auto;
-            background: var(--border-light);
-            color: var(--text-secondary);
-            padding: 3px 10px;
-            border-radius: 50px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            min-width: 26px;
-            text-align: center;
-        }
-        .sidebar .category-item .emoji {
-            font-size: 1.2rem;
-            width: 26px;
-            text-align: center;
-            flex-shrink: 0;
-        }
-        .sidebar .divider {
-            height: 1px;
-            background: var(--border-light);
-            margin: 8px 6px;
-        }
-        .sidebar .btn-add-category {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 14px;
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            font-size: 0.85rem;
-            color: var(--accent);
-            font-weight: 600;
-            border: 2px dashed var(--border);
-            transition: var(--transition);
-            background: transparent;
-            font-family: var(--font);
-            width: 100%;
-            text-align: left;
-        }
-        .sidebar .btn-add-category:hover {
-            border-color: var(--accent);
-            background: var(--accent-light);
-        }
-
-        /* ============ 主內容區 ============ */
-        .content-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            background: var(--bg);
-        }
-        .content-header {
-            padding: 14px 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-shrink: 0;
-            flex-wrap: wrap;
-        }
-        .content-header .view-toggle {
-            display: flex;
-            border-radius: 50px;
-            overflow: hidden;
-            border: 2px solid var(--border);
-            background: var(--surface);
-        }
-        .content-header .view-toggle button {
-            padding: 7px 14px;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-family: var(--font);
-            font-weight: 600;
-            color: var(--text-secondary);
-            transition: var(--transition);
-        }
-        .content-header .view-toggle button.active {
-            background: var(--accent);
-            color: #fff;
-        }
-        .content-header .sort-select {
-            padding: 7px 12px;
-            border-radius: 50px;
-            border: 2px solid var(--border);
-            font-size: 0.85rem;
-            font-family: var(--font);
-            background: var(--surface);
-            cursor: pointer;
-            color: var(--text);
-            font-weight: 500;
-        }
-        .content-header .info-text {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-left: auto;
-        }
-
-        /* 照片網格 */
-        .photo-grid {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px 16px 30px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 14px;
-            align-content: start;
-            transition: var(--transition);
-        }
-        .photo-grid.list-view {
-            grid-template-columns: 1fr;
-            gap: 8px;
-        }
-        .photo-grid.list-view .photo-card {
-            flex-direction: row;
-            height: 80px;
-            gap: 16px;
-            padding: 10px 16px;
-        }
-        .photo-grid.list-view .photo-card .card-thumb {
-            width: 60px;
-            height: 60px;
-            border-radius: var(--radius-sm);
-            flex-shrink: 0;
-        }
-        .photo-grid.list-view .photo-card .card-info {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        .photo-grid.list-view .photo-card .card-exif-mini {
-            display: flex;
-            gap: 16px;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-        }
-
-        /* 照片卡片 */
-        .photo-card {
-            background: var(--surface);
-            border-radius: var(--radius);
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-            cursor: grab;
-            transition: var(--transition);
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            border: 2px solid transparent;
-            min-height: 180px;
-        }
-        .photo-card:hover {
-            box-shadow: var(--shadow-md);
-            transform: translateY(-2px);
-            border-color: var(--border-light);
-        }
-        .photo-card:active {
-            cursor: grabbing;
-        }
-        .photo-card.dragging {
-            opacity: 0.5;
-            transform: scale(0.95);
-            box-shadow: var(--shadow-sm);
-            border-style: dashed;
-            border-color: var(--border);
-        }
-        .photo-card.drag-ghost {
-            opacity: 0.9;
-            transform: rotate(3deg) scale(1.04);
-            box-shadow: var(--shadow-drag);
-            z-index: 1000;
-            border-color: var(--accent-warm);
-            border-width: 3px;
-            cursor: grabbing;
-        }
-        .photo-card.selected {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 6px var(--accent-light);
-        }
-        .photo-card .card-thumb {
-            width: 100%;
-            aspect-ratio: 4/3;
-            object-fit: cover;
-            background: var(--border-light);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3rem;
-            color: var(--text-muted);
-            position: relative;
-            flex-shrink: 0;
-        }
-        .photo-card .card-thumb img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        .photo-card .card-thumb .raw-badge {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: rgba(0, 0, 0, 0.7);
-            color: #ffcc00;
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 4px 8px;
-            border-radius: 50px;
-            letter-spacing: 0.5px;
-            pointer-events: none;
-            backdrop-filter: blur(4px);
-        }
-        .photo-card .card-thumb .classify-badge {
-            position: absolute;
-            top: 8px;
-            left: 8px;
-            background: rgba(255, 255, 255, 0.9);
-            color: var(--accent);
-            font-size: 0.7rem;
-            font-weight: 700;
-            padding: 4px 10px;
-            border-radius: 50px;
-            pointer-events: none;
-            backdrop-filter: blur(4px);
-            box-shadow: var(--shadow-sm);
-        }
-        .photo-card .card-body {
-            padding: 10px 12px;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-        .photo-card .card-title {
-            font-weight: 700;
-            font-size: 0.9rem;
-            color: var(--text);
-            line-height: 1.3;
-        }
-        .photo-card .card-meta {
-            font-size: 0.72rem;
-            color: var(--text-muted);
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            align-items: center;
-        }
-        .photo-card .card-meta span {
-            display: flex;
-            align-items: center;
-            gap: 3px;
-        }
-        .photo-card .drag-handle {
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: grab;
-            opacity: 0;
-            transition: var(--transition);
-            border-radius: 50%;
-            background: var(--bg);
-            color: var(--text-muted);
-            font-size: 0.8rem;
-        }
-        .photo-card:hover .drag-handle {
-            opacity: 1;
-        }
-        .photo-card .drag-handle:active {
-            cursor: grabbing;
-            background: var(--accent-light);
-            color: var(--accent);
-        }
-
-        /* ============ 右側詳情面板 ============ */
-        .detail-panel {
-            width: var(--detail-width);
-            background: var(--surface);
-            border-left: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            flex-shrink: 0;
-            z-index: 50;
-            transition: var(--transition-slow);
-            box-shadow: var(--shadow-lg);
-        }
-        .detail-panel.hidden {
-            width: 0;
-            overflow: hidden;
-            border-left: none;
-            box-shadow: none;
-        }
-        .detail-panel .detail-header {
-            padding: 16px 18px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            background: var(--surface);
-            z-index: 5;
-        }
-        .detail-panel .detail-header h3 {
-            font-size: 1rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-        .detail-panel .btn-close {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            border: none;
-            background: var(--bg);
-            cursor: pointer;
-            font-size: 1rem;
-            transition: var(--transition);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-secondary);
-        }
-        .detail-panel .btn-close:hover {
-            background: var(--danger-light);
-            color: var(--danger);
-        }
-        .detail-panel .detail-image {
-            width: 100%;
-            aspect-ratio: 4/3;
-            object-fit: contain;
-            background: #1a1a1a;
-            flex-shrink: 0;
-        }
-        .detail-panel .detail-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-        .detail-panel .detail-section {
-            padding: 14px 18px;
-            border-bottom: 1px solid var(--border-light);
-        }
-        .detail-panel .detail-section h4 {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: var(--text-muted);
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-        .detail-panel .exif-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 6px 0;
-            font-size: 0.85rem;
-            border-bottom: 1px dotted var(--border-light);
-        }
-        .detail-panel .exif-row .exif-label {
-            color: var(--text-secondary);
-            font-weight: 500;
-        }
-        .detail-panel .exif-row .exif-value {
-            color: var(--text);
-            font-weight: 600;
-            text-align: right;
-        }
-        .detail-panel .no-exif {
-            text-align: center;
-            padding: 30px;
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-        .detail-panel .classify-select {
-            width: 100%;
-            padding: 8px 12px;
-            border-radius: var(--radius-sm);
-            border: 2px solid var(--border);
-            font-size: 0.9rem;
-            font-family: var(--font);
-            cursor: pointer;
-            background: var(--surface);
-            color: var(--text);
-            font-weight: 500;
-            transition: var(--transition);
-        }
-        .detail-panel .classify-select:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-light);
-        }
-        .detail-panel .tag-wrap {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 6px;
-        }
-        .detail-panel .tag {
-            background: var(--accent-light);
-            color: var(--accent);
-            padding: 4px 10px;
-            border-radius: 50px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: var(--transition);
-        }
-        .detail-panel .tag:hover {
-            background: var(--accent);
-            color: #fff;
-        }
-
-        /* ============ 拖曳提示 / Toast ============ */
-        .toast {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%) translateY(100px);
-            background: #333;
-            color: #fff;
-            padding: 12px 24px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            z-index: 9999;
-            pointer-events: none;
-            transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: var(--shadow-lg);
-        }
-        .toast.show {
-            transform: translateX(-50%) translateY(0);
-        }
-        .toast.success {
-            background: #2e7d32;
-        }
-
-        /* ============ Modal ============ */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(4px);
-            animation: fadeIn 0.2s;
-        }
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
-        }
-        .modal {
-            background: var(--surface);
-            border-radius: var(--radius-xl);
-            padding: 24px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: var(--shadow-lg);
-            animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        @keyframes slideUp {
-            from {
-                transform: translateY(40px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-        .modal h3 {
-            margin-bottom: 16px;
-            font-size: 1.1rem;
-        }
-        .modal input {
-            width: 100%;
-            padding: 10px 14px;
-            border-radius: var(--radius-sm);
-            border: 2px solid var(--border);
-            font-size: 0.9rem;
-            font-family: var(--font);
-            margin-bottom: 10px;
-        }
-        .modal input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-        .modal .btn-row {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-            margin-top: 16px;
-        }
-        .modal .btn {
-            padding: 9px 20px;
-            border-radius: 50px;
-            border: 2px solid var(--border);
-            cursor: pointer;
-            font-weight: 600;
-            font-family: var(--font);
-            font-size: 0.9rem;
-            transition: var(--transition);
-            background: var(--surface);
-        }
-        .modal .btn.primary {
-            background: var(--accent);
-            color: #fff;
-            border-color: var(--accent);
-        }
-        .modal .btn.primary:hover {
-            background: var(--accent-hover);
-        }
-
-        /* ============ 響應式 ============ */
-        @media (max-width: 900px) {
-            .sidebar {
-                width: 220px;
-                padding: 10px 6px;
-            }
-            .detail-panel {
-                width: 300px;
-            }
-            .photo-grid {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-                gap: 10px;
-            }
-            .topbar .search-wrap {
-                max-width: 200px;
-            }
-        }
-        @media (max-width: 600px) {
-            .sidebar {
-                position: fixed;
-                left: 0;
-                top: var(--topbar-height);
-                bottom: 0;
-                z-index: 150;
-                transform: translateX(-100%);
-                width: 260px;
-            }
-            .sidebar.mobile-open {
-                transform: translateX(0);
-                box-shadow: var(--shadow-lg);
-            }
-            .detail-panel {
-                position: fixed;
-                right: 0;
-                top: var(--topbar-height);
-                bottom: 0;
-                z-index: 150;
-                width: 100%;
-                max-width: 360px;
-                transform: translateX(100%);
-            }
-            .detail-panel.mobile-open {
-                transform: translateX(0);
-            }
-            .detail-panel.hidden {
-                transform: translateX(100%);
-                width: 100%;
-                max-width: 360px;
-            }
-            .photo-grid {
-                grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-                gap: 8px;
-                padding: 8px;
-            }
-            .topbar .btn span.btn-label {
-                display: none;
-            }
-        }
-
-        /* 隱藏文件上傳 input */
-        #file-input {
-            display: none;
-        }
-
-        /* 空狀態 */
-        .empty-state {
-            grid-column: 1 / -1;
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        .empty-state .empty-icon {
-            font-size: 5rem;
-            display: block;
-            margin-bottom: 16px;
-            animation: birdBounce 2s ease-in-out infinite;
-        }
-        .empty-state h3 {
-            font-size: 1.3rem;
-            color: var(--text);
-            margin-bottom: 8px;
-        }
-        .empty-state p {
-            font-size: 0.9rem;
-            max-width: 400px;
-            margin: 0 auto;
-            line-height: 1.6;
-        }
-
-        /* 進度條 */
-        .progress-bar-wrap {
-            position: fixed;
-            top: var(--topbar-height);
-            left: 0;
-            right: 0;
-            height: 3px;
-            z-index: 300;
-            pointer-events: none;
-        }
-        .progress-bar {
-            height: 100%;
-            background: var(--accent);
-            width: 0%;
-            transition: width 0.3s;
-            border-radius: 0 3px 3px 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🦜 鳥類圖鑑｜OAuth 雲端同步</title>
+  <!-- exifr -->
+  <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif; background:#f7f3eb; color:#3e3a34; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+    :root {
+      --surface:#fff; --bg:#f7f3eb; --border:#e0d9cd; --accent:#5a8a6e; --accent-light:#e8f2ea;
+      --danger:#b85450; --shadow:0 2px 8px rgba(0,0,0,0.06);
+      --topbar-h:56px;
+    }
+    .topbar { height:var(--topbar-h); background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 16px; gap:10px; flex-shrink:0; z-index:10; }
+    .logo { font-weight:700; font-size:1.2rem; color:var(--accent); display:flex; align-items:center; gap:4px; }
+    .search-box { flex:1; max-width:520px; position:relative; display:flex; align-items:center; }
+    .search-box input { width:100%; padding:8px 12px 8px 36px; border:2px solid var(--border); border-radius:40px; font-size:0.9rem; background:var(--bg); }
+    .search-box .icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#999; }
+    .search-box .date-btn { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:var(--surface); border:2px solid var(--border); border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1rem; z-index:2; }
+    .btn, .user-btn { padding:6px 14px; border-radius:40px; border:2px solid var(--border); background:var(--surface); cursor:pointer; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:4px; white-space:nowrap; transition:0.2s; text-decoration:none; color:inherit; }
+    .btn:hover, .user-btn:hover { background:var(--bg); }
+    .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .btn.danger { background:var(--danger); color:#fff; border-color:var(--danger); }
+    .user-area { display:flex; align-items:center; gap:8px; }
+    .user-avatar { width:28px; height:28px; border-radius:50%; }
+    .main { display:flex; flex:1; overflow:hidden; }
+    .sidebar { width:260px; background:var(--surface); border-right:1px solid var(--border); overflow-y:auto; padding:12px 8px; flex-shrink:0; }
+    .sidebar h4 { font-size:0.7rem; text-transform:uppercase; color:#999; margin:12px 8px 4px; }
+    .cat-item { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:0.9rem; margin:2px 0; transition:0.2s; }
+    .cat-item.active { background:var(--accent-light); font-weight:700; }
+    .cat-item .count { margin-left:auto; background:#eee; padding:2px 8px; border-radius:20px; font-size:0.75rem; }
+    .cat-item .del-cat { display:none; margin-left:4px; color:var(--danger); cursor:pointer; }
+    .cat-item:hover .del-cat { display:inline; }
+    .content { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    .toolbar { padding:8px 16px; display:flex; gap:8px; align-items:center; background:var(--bg); flex-wrap:wrap; }
+    .photo-grid { flex:1; overflow-y:auto; padding:12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:12px; align-content:start; }
+    .card { background:var(--surface); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; cursor:pointer; transition:0.2s; position:relative; border:3px solid transparent; }
+    .card.selected { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-light); }
+    .card:hover { transform:translateY(-2px); box-shadow:0 6px 16px rgba(0,0,0,0.1); }
+    .card .thumb { width:100%; aspect-ratio:4/3; object-fit:cover; background:#ddd; display:flex; align-items:center; justify-content:center; font-size:2rem; position:relative; }
+    .card .thumb img { width:100%; height:100%; object-fit:cover; }
+    .card .raw-badge { position:absolute; bottom:4px; right:4px; background:rgba(0,0,0,0.7); color:#ffcc00; font-size:0.6rem; padding:2px 6px; border-radius:10px; }
+    .card .info { padding:8px 10px; }
+    .card .title { font-weight:600; font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .card .meta { font-size:0.7rem; color:#888; margin-top:2px; }
+    .card .del-btn { position:absolute; top:6px; right:6px; background:rgba(255,255,255,0.9); border-radius:50%; width:24px; height:24px; display:none; align-items:center; justify-content:center; color:var(--danger); font-weight:bold; z-index:2; }
+    .card:hover .del-btn { display:flex; }
+    .detail-panel { width:360px; background:var(--surface); border-left:1px solid var(--border); overflow-y:auto; flex-shrink:0; transition:0.3s; }
+    .detail-panel.hidden { width:0; overflow:hidden; border:none; }
+    .detail-header { padding:12px; display:flex; gap:8px; align-items:center; border-bottom:1px solid var(--border); }
+    .detail-header input { flex:1; padding:6px 10px; border:2px solid var(--border); border-radius:6px; }
+    .detail-img { width:100%; aspect-ratio:4/3; object-fit:contain; background:#111; }
+    .detail-actions { display:flex; gap:8px; margin:8px 12px; flex-wrap:wrap; }
+    .detail-actions a, .detail-actions button { flex:1; text-align:center; padding:6px; border-radius:20px; border:2px solid var(--accent); color:var(--accent); background:var(--surface); cursor:pointer; font-weight:600; font-size:0.8rem; text-decoration:none; white-space:nowrap; }
+    .detail-actions a:hover, .detail-actions button:hover { background:var(--accent); color:#fff; }
+    .detail-section { padding:12px; border-bottom:1px solid #eee; }
+    .exif-row { display:flex; justify-content:space-between; padding:4px 0; font-size:0.85rem; }
+    .modal { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:999; }
+    .modal-box { background:#fff; padding:20px; border-radius:16px; width:90%; max-width:460px; }
+    .modal-box input { width:100%; padding:8px; margin:4px 0; border:2px solid #ddd; border-radius:8px; }
+    .date-popup { position:absolute; top:56px; right:0; background:#fff; border:2px solid var(--border); border-radius:12px; padding:12px; box-shadow:var(--shadow); z-index:50; display:none; }
+    .date-popup input { margin:4px; padding:6px; border:2px solid var(--border); border-radius:8px; }
+    .multi-actions { margin-left:auto; display:flex; gap:6px; align-items:center; }
+  </style>
 </head>
 <body>
-
-    <!-- ========== 頂部導航欄 ========== -->
-    <div class="topbar">
-        <div class="logo">
-            <span class="icon">🦜</span> 鳥類圖鑑
-        </div>
-        <div class="search-wrap">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="search-input" placeholder="搜尋鳥類名稱、相機型號、鏡頭..." />
-        </div>
-        <button class="btn btn-upload" onclick="document.getElementById('file-input').click()" title="上傳照片（支援 RAW 格式）">
-            📁 <span class="btn-label">上傳照片</span>
-        </button>
-        <input type="file" id="file-input" multiple accept="image/*,.arw,.cr2,.cr3,.nef,.dng,.orf,.rw2,.pef,.raf,.srw,.heic,.tiff,.tif" />
-        <button class="btn btn-drive" id="btn-google-drive" onclick="connectGoogleDrive()" title="連接 Google Drive 載入照片">
-            🔗 <span class="btn-label">連接 Google Drive</span>
-        </button>
-        <div class="stats-pill" id="stats-pill">
-            📊 <span id="photo-count">0</span> 張照片
-        </div>
-        <button class="btn" onclick="toggleSidebar()" title="切換側邊欄">☰</button>
+<div class="topbar">
+  <div class="logo">🦜 鳥類圖鑑</div>
+  <div class="search-box">
+    <span class="icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="名稱/相機/鏡頭 或 年份(2024) 月份(2024-03) 區間">
+    <span class="date-btn" id="dateBtn">📅</span>
+    <div class="date-popup" id="datePopup">
+      <label>開始日期</label>
+      <input type="date" id="dateStart">
+      <label>結束日期</label>
+      <input type="date" id="dateEnd">
+      <div style="display:flex; gap:6px; margin-top:8px;">
+        <button class="btn" onclick="applyDateRange()">套用</button>
+        <button class="btn" onclick="clearDateRange()">清除</button>
+      </div>
     </div>
+  </div>
+  <div class="user-area" id="userArea">
+    <button class="btn primary" id="loginBtn" onclick="handleAuthClick()">🔐 登入 Google</button>
+  </div>
+  <button class="btn" onclick="toggleSidebar()">☰</button>
+</div>
 
-    <!-- ========== 進度條 ========== -->
-    <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+<div class="main">
+  <aside class="sidebar" id="sidebar">
+    <h4>📂 分類</h4>
+    <div class="cat-item active" data-cat="all">📷 全部照片 <span class="count" id="countAll">0</span></div>
+    <div class="cat-item" data-cat="uncategorized">❓ 未分類 <span class="count" id="countUncat">0</span></div>
+    <div id="customCats"></div>
+    <button class="btn" style="width:100%; margin-top:6px;" onclick="addCategory()">＋ 新增分類（雲端同步）</button>
+    <h4>📸 相機</h4>
+    <div id="cameraList"></div>
+    <button class="btn" style="width:100%;" onclick="addFilter('camera')">＋ 新增相機條件</button>
+    <h4>🔭 鏡頭</h4>
+    <div id="lensList"></div>
+    <button class="btn" style="width:100%;" onclick="addFilter('lens')">＋ 新增鏡頭條件</button>
+  </aside>
 
-    <!-- ========== Toast ========== -->
-    <div class="toast" id="toast"></div>
-
-    <!-- ========== 主佈局 ========== -->
-    <div class="main-layout">
-
-        <!-- 左側邊欄：分類 -->
-        <aside class="sidebar" id="sidebar">
-            <div class="section-title">📂 鳥類分類</div>
-            <div class="category-item active" data-category="all" draggable="false">
-                <span class="emoji">📷</span> 全部照片 <span class="badge" id="badge-all">0</span>
-            </div>
-            <div class="category-item" data-category="uncategorized" draggable="false">
-                <span class="emoji">❓</span> 未分類 <span class="badge" id="badge-uncategorized">0</span>
-            </div>
-            <div class="divider"></div>
-            <div id="custom-categories-container">
-                <!-- 動態生成的自訂分類 -->
-            </div>
-            <button class="btn-add-category" onclick="showAddCategoryModal()">＋ 新增分類</button>
-
-            <div class="section-title" style="margin-top:8px;">📅 依日期</div>
-            <div id="date-categories-container">
-                <!-- 動態生成的日期分類 -->
-            </div>
-
-            <div class="section-title" style="margin-top:8px;">📸 依相機</div>
-            <div id="camera-categories-container">
-                <!-- 動態生成的相機分類 -->
-            </div>
-        </aside>
-
-        <!-- 主內容區 -->
-        <main class="content-area">
-            <div class="content-header">
-                <div class="view-toggle">
-                    <button class="active" data-view="grid" onclick="setView('grid')">🖼️ 網格</button>
-                    <button data-view="list" onclick="setView('list')">📋 列表</button>
-                </div>
-                <select class="sort-select" id="sort-select" onchange="applySort()">
-                    <option value="date-desc">最新優先</option>
-                    <option value="date-asc">最舊優先</option>
-                    <option value="name-asc">名稱 A-Z</option>
-                    <option value="camera">依相機型號</option>
-                    <option value="focal">依焦距</option>
-                </select>
-                <span class="info-text">💡 拖曳照片到側邊欄分類即可移動歸類</span>
-            </div>
-            <div class="photo-grid" id="photo-grid">
-                <div class="empty-state" id="empty-state">
-                    <span class="empty-icon">🐦</span>
-                    <h3>歡迎使用鳥類圖鑑</h3>
-                    <p>上傳您的鳥類攝影作品，或是連接 Google Drive 來載入照片。<br>支援讀取 SONY、Canon RAW 檔案的 EXIF 資訊。</p>
-                    <p style="margin-top:12px;font-size:0.8rem;color:var(--text-muted);">
-                        支援格式：JPEG、PNG、HEIC、TIFF、ARW、CR2、CR3、NEF、DNG 等
-                    </p>
-                </div>
-            </div>
-        </main>
-
-        <!-- 右側詳情面板 -->
-        <aside class="detail-panel hidden" id="detail-panel">
-            <div class="detail-header">
-                <h3>📋 照片詳情</h3>
-                <button class="btn-close" onclick="closeDetail()">✕</button>
-            </div>
-            <div class="detail-image" id="detail-image">
-                <span style="color:#888;">選擇照片查看詳情</span>
-            </div>
-            <div class="detail-section">
-                <h4>🏷️ 分類</h4>
-                <select class="classify-select" id="detail-classify-select" onchange="updatePhotoCategory()">
-                    <option value="uncategorized">未分類</option>
-                </select>
-                <div class="tag-wrap" id="detail-tags"></div>
-            </div>
-            <div class="detail-section">
-                <h4>📸 EXIF 資訊</h4>
-                <div id="exif-container">
-                    <div class="no-exif">點擊照片以讀取 EXIF 資料</div>
-                </div>
-            </div>
-        </aside>
+  <div class="content">
+    <div class="toolbar">
+      <select id="sortSelect" onchange="renderGrid()">
+        <option value="date-desc">最新優先</option>
+        <option value="date-asc">最舊優先</option>
+        <option value="name">名稱排序</option>
+      </select>
+      <button class="btn" onclick="document.getElementById('fileInput').click()">📁 上傳照片</button>
+      <input type="file" id="fileInput" multiple accept="image/*,.arw,.cr2,.cr3,.nef,.dng,.orf,.rw2,.pef,.raf,.srw,.heic,.tiff,.tif" hidden>
+      <span style="font-size:0.8rem; color:#888;">💡 拖曳照片到分類移動（雲端同步）</span>
+      <div class="multi-actions" id="multiActions" style="display:none;">
+        <span id="selectedCount">已選0張</span>
+        <button class="btn" onclick="batchMoveCategory()">📂 批次移動</button>
+        <button class="btn" onclick="copySelectedLinks()">📋 複製連結</button>
+        <button class="btn" onclick="clearSelection()">取消選取</button>
+      </div>
     </div>
+    <div class="photo-grid" id="photoGrid"></div>
+  </div>
 
-    <!-- ========== 新增分類 Modal ========== -->
-    <div class="modal-overlay" id="modal-overlay" style="display:none;">
-        <div class="modal">
-            <h3>🆕 新增鳥類分類</h3>
-            <label>分類名稱</label>
-            <input type="text" id="new-category-name" placeholder="例如：台灣藍鵲、翠鳥..." />
-            <label>圖示 Emoji（選填）</label>
-            <input type="text" id="new-category-emoji" placeholder="例如：🦅" maxlength="4" />
-            <div class="btn-row">
-                <button class="btn" onclick="closeModal()">取消</button>
-                <button class="btn primary" onclick="addCategory()">新增</button>
-            </div>
-        </div>
+  <aside class="detail-panel hidden" id="detailPanel">
+    <div class="detail-header">
+      <input type="text" id="detailName" placeholder="照片名稱">
+      <button class="btn" onclick="renamePhoto()">💾 儲存</button>
+      <button class="btn" onclick="closeDetail()">✕</button>
     </div>
-
-    <!-- ========== Google Drive 設定 Modal ========== -->
-    <div class="modal-overlay" id="drive-modal-overlay" style="display:none;">
-        <div class="modal">
-            <h3>🔗 Google Drive 設定</h3>
-            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">
-                請輸入您的 Google Drive 資料夾 ID 與 API Key。<br>
-                <small>（資料夾需設定為「知道連結的人可以檢視」）</small>
-            </p>
-            <label>Google Drive 資料夾 ID</label>
-            <input type="text" id="drive-folder-id" placeholder="從資料夾網址中複製..." />
-            <label>Google API Key</label>
-            <input type="text" id="drive-api-key" placeholder="AIzaSy..." />
-            <div class="btn-row">
-                <button class="btn" onclick="closeDriveModal()">取消</button>
-                <button class="btn primary" onclick="loadFromDrive()">載入照片</button>
-            </div>
-            <p style="font-size:0.7rem;color:var(--text-muted);margin-top:8px;">
-                💡 若無 API Key，可使用「上傳照片」功能替代
-            </p>
-        </div>
+    <img class="detail-img" id="detailImg" src="" alt="">
+    <div class="detail-actions">
+      <a id="originalView" target="_blank">🔍 查看原始照片</a>
+      <a id="originalDownload" download>⬇️ 下載原始照片</a>
+      <button onclick="copyImageToClipboard()">📋 複製圖片</button>
     </div>
-
-    <script>
-        (function() {
-            // ==================== 全域狀態 ====================
-            const state = {
-                photos: [], // { id, name, category, thumbnailUrl, fileRef, exif, rawFormat, dateAdded }
-                customCategories: [], // { name, emoji }
-                activeCategory: 'all',
-                activePhotoId: null,
-                viewMode: 'grid',
-                sortMode: 'date-desc',
-                searchQuery: '',
-                googleDriveConnected: false,
-            };
-
-            // 從 localStorage 恢復
-            function loadState() {
-                try {
-                    const saved = localStorage.getItem('birdGuideState');
-                    if (saved) {
-                        const parsed = JSON.parse(saved);
-                        state.customCategories = parsed.customCategories || [];
-                        // 恢復照片元資料（不含 fileRef 和 blob URL）
-                        if (parsed.photosMeta) {
-                            state.photos = parsed.photosMeta.map(p => ({
-                                ...p,
-                                fileRef: null,
-                                thumbnailUrl: p.thumbnailUrl || null,
-                                // blob URLs 可能已失效，需重新生成
-                            }));
-                            // 清除失效的 blob URLs
-                            state.photos.forEach(p => {
-                                if (p.thumbnailUrl && p.thumbnailUrl.startsWith('blob:')) {
-                                    p.thumbnailUrl = null;
-                                }
-                            });
-                        }
-                    }
-                } catch (e) {
-                    console.warn('無法恢復儲存狀態', e);
-                }
-            }
-
-            function saveState() {
-                try {
-                    const photosMeta = state.photos.map(p => ({
-                        id: p.id,
-                        name: p.name,
-                        category: p.category,
-                        thumbnailUrl: p.thumbnailUrl && !p.thumbnailUrl.startsWith('blob:') ? p
-                            .thumbnailUrl : null,
-                        exif: p.exif,
-                        rawFormat: p.rawFormat,
-                        dateAdded: p.dateAdded,
-                    }));
-                    localStorage.setItem('birdGuideState', JSON.stringify({
-                        customCategories: state.customCategories,
-                        photosMeta: photosMeta,
-                    }));
-                } catch (e) {
-                    console.warn('無法儲存狀態', e);
-                }
-            }
-
-            // ==================== DOM 參考 ====================
-            const $ = (sel) => document.querySelector(sel);
-            const $$ = (sel) => document.querySelectorAll(sel);
-
-            const photoGrid = $('#photo-grid');
-            const detailPanel = $('#detail-panel');
-            const sidebar = $('#sidebar');
-            const searchInput = $('#search-input');
-            const emptyState = $('#empty-state');
-            const toastEl = $('#toast');
-            const progressBar = $('#progress-bar');
-            const exifContainer = $('#exif-container');
-            const detailImage = $('#detail-image');
-            const detailClassifySelect = $('#detail-classify-select');
-            const statsPill = $('#stats-pill');
-            const photoCountSpan = $('#photo-count');
-            const badgeAll = $('#badge-all');
-            const badgeUncategorized = $('#badge-uncategorized');
-            const customCategoriesContainer = $('#custom-categories-container');
-            const dateCategoriesContainer = $('#date-categories-container');
-            const cameraCategoriesContainer = $('#camera-categories-container');
-            const modalOverlay = $('#modal-overlay');
-            const driveModalOverlay = $('#drive-modal-overlay');
-            const fileInput = $('#file-input');
-            const btnGoogleDrive = $('#btn-google-drive');
-
-            // ==================== Toast ====================
-            let toastTimer;
-
-            function showToast(msg, type = '') {
-                clearTimeout(toastTimer);
-                toastEl.textContent = msg;
-                toastEl.className = 'toast ' + type + ' show';
-                toastTimer = setTimeout(() => {
-                    toastEl.classList.remove('show');
-                }, 2200);
-            }
-
-            // ==================== 進度條 ====================
-            function setProgress(percent) {
-                progressBar.style.width = Math.min(100, Math.max(0, percent)) + '%';
-                if (percent >= 100) {
-                    setTimeout(() => { progressBar.style.width = '0%'; }, 600);
-                }
-            }
-
-            // ==================== 生成唯一 ID ====================
-            function generateId() {
-                return 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            }
-
-            // ==================== EXIF 讀取 ====================
-            async function readExifFromFile(file) {
-                try {
-                    // exifr 支援 JPEG, TIFF, PNG, HEIC 以及 RAW 格式的 EXIF
-                    const exifData = await exifr.parse(file, {
-                        pick: ['Make', 'Model', 'LensModel', 'FocalLength', 'FNumber', 'ApertureValue',
-                            'ExposureTime', 'ShutterSpeedValue', 'ISO', 'DateTimeOriginal',
-                            'CreateDate', 'GPSLatitude', 'GPSLongitude', 'GPSLatitudeRef',
-                            'GPSLongitudeRef', 'ImageWidth', 'ImageHeight', 'LensInfo',
-                            'FocalLengthIn35mmFormat', 'WhiteBalance', 'Flash', 'MeteringMode',
-                            'ExposureProgram', 'Orientation'
-                        ],
-                        gps: true,
-                        translateKeys: true,
-                        translateValues: true,
-                        reviveValues: true,
-                    });
-                    return exifData || null;
-                } catch (e) {
-                    console.warn('EXIF 讀取失敗:', file.name, e.message);
-                    return null;
-                }
-            }
-
-            async function extractThumbnailFromRaw(file) {
-                // 對於 RAW 檔案，嘗試提取內嵌的 JPEG 預覽
-                try {
-                    const thumb = await exifr.thumbnail(file);
-                    if (thumb) {
-                        const blob = new Blob([thumb], { type: 'image/jpeg' });
-                        return URL.createObjectURL(blob);
-                    }
-                } catch (e) {
-                    console.warn('無法提取 RAW 縮圖:', file.name, e.message);
-                }
-                return null;
-            }
-
-            function isRawFile(filename) {
-                const ext = filename.split('.').pop()?.toLowerCase();
-                const rawExts = ['arw', 'cr2', 'cr3', 'nef', 'dng', 'orf', 'rw2', 'pef', 'raf', 'srw', 'raw'];
-                return rawExts.includes(ext);
-            }
-
-            function getRawFormat(filename) {
-                const ext = filename.split('.').pop()?.toLowerCase();
-                const map = {
-                    'arw': 'SONY ARW',
-                    'cr2': 'Canon CR2',
-                    'cr3': 'Canon CR3',
-                    'nef': 'Nikon NEF',
-                    'dng': 'Adobe DNG',
-                    'orf': 'Olympus ORF',
-                    'rw2': 'Panasonic RW2',
-                    'pef': 'Pentax PEF',
-                    'raf': 'Fujifilm RAF',
-                    'srw': 'Samsung SRW',
-                };
-                return map[ext] || ext?.toUpperCase() || null;
-            }
-
-            // ==================== 處理上傳檔案 ====================
-            async function handleFiles(files) {
-                const fileArray = Array.from(files);
-                if (fileArray.length === 0) return;
-
-                setProgress(5);
-                let processed = 0;
-                const total = fileArray.length;
-
-                for (const file of fileArray) {
-                    const id = generateId();
-                    const rawFormat = getRawFormat(file.name);
-                    const isRaw = !!rawFormat;
-
-                    // 讀取 EXIF
-                    const exif = await readExifFromFile(file);
-                    processed++;
-                    setProgress(5 + (processed / total) * 70);
-
-                    // 生成縮圖
-                    let thumbnailUrl = null;
-                    if (isRaw) {
-                        thumbnailUrl = await extractThumbnailFromRaw(file);
-                    }
-                    if (!thumbnailUrl && (file.type.startsWith('image/') || file.type === '')) {
-                        // 對於瀏覽器支援的格式，建立 URL
-                        if (file.type.match(/image\/(jpeg|png|gif|webp|heic|heif|tiff)/i) ||
-                            file.name.match(/\.(jpg|jpeg|png|gif|webp|heic|heif|tif|tiff)$/i)) {
-                            thumbnailUrl = URL.createObjectURL(file);
-                        }
-                    }
-
-                    // 判斷鳥類名稱（從檔名或 EXIF 推測）
-                    let birdName = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
-                    if (exif && exif.Model) {
-                        // 有 EXIF 的檔案，保留更多資訊
-                    }
-
-                    const photo = {
-                        id,
-                        name: birdName || file.name,
-                        category: 'uncategorized',
-                        thumbnailUrl,
-                        fileRef: file, // 保留原始檔案參考
-                        exif,
-                        rawFormat,
-                        dateAdded: new Date().toISOString(),
-                        fileSize: file.size,
-                        fileName: file.name,
-                    };
-
-                    state.photos.push(photo);
-                }
-
-                setProgress(100);
-                saveState();
-                renderAll();
-                showToast(`✅ 成功載入 ${fileArray.length} 張照片`, 'success');
-            }
-
-            // ==================== Google Drive 整合 ====================
-            function connectGoogleDrive() {
-                if (state.googleDriveConnected) {
-                    showToast('已連接 Google Drive', 'success');
-                    return;
-                }
-                // 顯示設定 modal
-                driveModalOverlay.style.display = 'flex';
-            }
-
-            function closeDriveModal() {
-                driveModalOverlay.style.display = 'none';
-            }
-
-            async function loadFromDrive() {
-                const folderId = $('#drive-folder-id').value.trim();
-                const apiKey = $('#drive-api-key').value.trim();
-
-                if (!folderId || !apiKey) {
-                    showToast('請輸入資料夾 ID 與 API Key');
-                    return;
-                }
-
-                closeDriveModal();
-                setProgress(10);
-                showToast('正在連接 Google Drive...');
-
-                try {
-                    // 使用 Google Drive API v3 列出資料夾中的檔案
-                    const url =
-                        `https://www.googleapis.com/drive/v3/files?q='${encodeURIComponent(folderId)}'+in+parents&key=${apiKey}&fields=files(id,name,mimeType,size,thumbnailLink,webContentLink,createdTime,imageMediaMetadata)&pageSize=100`;
-
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
-                    }
-                    const data = await response.json();
-                    setProgress(30);
-
-                    if (!data.files || data.files.length === 0) {
-                        showToast('資料夾中沒有找到檔案');
-                        setProgress(0);
-                        return;
-                    }
-
-                    const imageFiles = data.files.filter(f =>
-                        f.mimeType?.startsWith('image/') ||
-                        f.name?.match(/\.(arw|cr2|cr3|nef|dng|orf|rw2|pef|raf|srw|jpg|jpeg|png|heic|tiff|tif)$/i)
-                    );
-
-                    if (imageFiles.length === 0) {
-                        showToast('資料夾中沒有圖片或 RAW 檔案');
-                        setProgress(0);
-                        return;
-                    }
-
-                    let processed = 0;
-                    for (const file of imageFiles) {
-                        const id = generateId();
-                        const rawFormat = getRawFormat(file.name);
-                        const isRaw = !!rawFormat;
-                        const thumbnailUrl = file.thumbnailLink || null;
-
-                        // 嘗試讀取 EXIF（透過 Google Drive 的下載連結）
-                        let exif = null;
-                        try {
-                            if (file.webContentLink || file.id) {
-                                const downloadUrl = file.webContentLink ||
-                                    `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${apiKey}`;
-                                exif = await exifr.parse(downloadUrl, {
-                                    pick: ['Make', 'Model', 'LensModel', 'FocalLength', 'FNumber',
-                                        'ExposureTime', 'ISO', 'DateTimeOriginal', 'CreateDate',
-                                        'GPSLatitude', 'GPSLongitude', 'FocalLengthIn35mmFormat'
-                                    ],
-                                    gps: true,
-                                    translateKeys: true,
-                                    translateValues: true,
-                                    reviveValues: true,
-                                });
-                            }
-                        } catch (e) {
-                            console.warn('無法從 Drive 讀取 EXIF:', file.name, e.message);
-                        }
-
-                        const birdName = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
-
-                        const photo = {
-                            id,
-                            name: birdName || file.name,
-                            category: 'uncategorized',
-                            thumbnailUrl,
-                            fileRef: null,
-                            driveFileId: file.id,
-                            driveUrl: file.webContentLink || null,
-                            exif,
-                            rawFormat,
-                            dateAdded: file.createdTime || new Date().toISOString(),
-                            fileSize: file.size || 0,
-                            fileName: file.name,
-                        };
-
-                        state.photos.push(photo);
-                        processed++;
-                        setProgress(30 + (processed / imageFiles.length) * 60);
-                    }
-
-                    state.googleDriveConnected = true;
-                    btnGoogleDrive.textContent = '✅ 已連接';
-                    btnGoogleDrive.classList.add('connected');
-                    setProgress(100);
-                    saveState();
-                    renderAll();
-                    showToast(`✅ 從 Google Drive 載入 ${imageFiles.length} 張照片`, 'success');
-
-                } catch (e) {
-                    console.error('Google Drive 載入失敗:', e);
-                    showToast('❌ 載入失敗：' + e.message);
-                    setProgress(0);
-                }
-            }
-
-            // ==================== 渲染 ====================
-            function getFilteredPhotos() {
-                let photos = [...state.photos];
-
-                // 分類篩選
-                if (state.activeCategory === 'all') {
-                    // 全部
-                } else if (state.activeCategory === 'uncategorized') {
-                    photos = photos.filter(p => p.category === 'uncategorized');
-                } else if (state.activeCategory.startsWith('date:')) {
-                    const dateKey = state.activeCategory.replace('date:', '');
-                    photos = photos.filter(p => {
-                        const d = getPhotoDate(p);
-                        return formatDateKey(d) === dateKey;
-                    });
-                } else if (state.activeCategory.startsWith('camera:')) {
-                    const cameraModel = state.activeCategory.replace('camera:', '');
-                    photos = photos.filter(p => p.exif && p.exif.Model === cameraModel);
-                } else {
-                    photos = photos.filter(p => p.category === state.activeCategory);
-                }
-
-                // 搜尋
-                if (state.searchQuery) {
-                    const q = state.searchQuery.toLowerCase();
-                    photos = photos.filter(p => {
-                        return (
-                            p.name.toLowerCase().includes(q) ||
-                            (p.exif && p.exif.Model && p.exif.Model.toLowerCase().includes(q)) ||
-                            (p.exif && p.exif.LensModel && p.exif.LensModel.toLowerCase().includes(
-                                q)) ||
-                            (p.fileName && p.fileName.toLowerCase().includes(q)) ||
-                            (p.rawFormat && p.rawFormat.toLowerCase().includes(q))
-                        );
-                    });
-                }
-
-                // 排序
-                photos.sort((a, b) => {
-                    switch (state.sortMode) {
-                        case 'date-desc':
-                            return new Date(b.dateAdded) - new Date(a.dateAdded);
-                        case 'date-asc':
-                            return new Date(a.dateAdded) - new Date(b.dateAdded);
-                        case 'name-asc':
-                            return a.name.localeCompare(b.name);
-                        case 'camera':
-                            const camA = a.exif?.Model || 'ZZZ';
-                            const camB = b.exif?.Model || 'ZZZ';
-                            return camA.localeCompare(camB);
-                        case 'focal':
-                            const focA = a.exif?.FocalLength || a.exif?.FocalLengthIn35mmFormat || 0;
-                            const focB = b.exif?.FocalLength || b.exif?.FocalLengthIn35mmFormat || 0;
-                            return (focB || 0) - (focA || 0);
-                        default:
-                            return 0;
-                    }
-                });
-
-                return photos;
-            }
-
-            function getPhotoDate(photo) {
-                if (photo.exif && photo.exif.DateTimeOriginal) {
-                    return new Date(photo.exif.DateTimeOriginal);
-                }
-                if (photo.exif && photo.exif.CreateDate) {
-                    return new Date(photo.exif.CreateDate);
-                }
-                return new Date(photo.dateAdded);
-            }
-
-            function formatDateKey(date) {
-                if (!date || isNaN(date.getTime())) return 'unknown';
-                return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
-            }
-
-            function formatDateDisplay(dateKey) {
-                if (dateKey === 'unknown') return '未知日期';
-                const [y, m] = dateKey.split('-');
-                return `${y} 年 ${parseInt(m)} 月`;
-            }
-
-            function getDateCategories() {
-                const map = new Map();
-                state.photos.forEach(p => {
-                    const key = formatDateKey(getPhotoDate(p));
-                    if (!map.has(key)) map.set(key, 0);
-                    map.set(key, map.get(key) + 1);
-                });
-                const entries = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-                return entries;
-            }
-
-            function getCameraCategories() {
-                const map = new Map();
-                state.photos.forEach(p => {
-                    const model = p.exif?.Model || '未知相機';
-                    if (!map.has(model)) map.set(model, 0);
-                    map.set(model, map.get(model) + 1);
-                });
-                const entries = [...map.entries()].sort((a, b) => b[1] - a[1]);
-                return entries;
-            }
-
-            function renderAll() {
-                renderSidebar();
-                renderPhotoGrid();
-                updateStats();
-                updateDetailPanelSelect();
-                if (state.activePhotoId) {
-                    updateDetailPanel();
-                }
-                saveState();
-            }
-
-            function renderSidebar() {
-                // 更新 badge
-                badgeAll.textContent = state.photos.length;
-                const uncategorizedCount = state.photos.filter(p => p.category === 'uncategorized').length;
-                badgeUncategorized.textContent = uncategorizedCount;
-
-                // 更新 active 狀態
-                $$('.sidebar .category-item').forEach(el => {
-                    el.classList.toggle('active', el.dataset.category === state.activeCategory);
-                });
-
-                // 自訂分類
-                customCategoriesContainer.innerHTML = state.customCategories.map(cat => {
-                    const count = state.photos.filter(p => p.category === cat.name).length;
-                    return `
-                        <div class="category-item" data-category="${escapeHtml(cat.name)}"
-                             draggable="false"
-                             ondragover="handleDragOver(event, '${escapeHtml(cat.name)}')"
-                             ondragleave="handleDragLeave(event)"
-                             ondrop="handleDropOnCategory(event, '${escapeHtml(cat.name)}')">
-                            <span class="emoji">${cat.emoji || '🐦'}</span>
-                            ${escapeHtml(cat.name)}
-                            <span class="badge">${count}</span>
-                        </div>
-                    `;
-                }).join('');
-
-                // 日期分類
-                const dateCats = getDateCategories();
-                dateCategoriesContainer.innerHTML = dateCats.map(([key, count]) => `
-                    <div class="category-item" data-category="date:${key}">
-                        <span class="emoji">📅</span> ${formatDateDisplay(key)}
-                        <span class="badge">${count}</span>
-                    </div>
-                `).join('');
-
-                // 相機分類
-                const camCats = getCameraCategories();
-                cameraCategoriesContainer.innerHTML = camCats.map(([model, count]) => `
-                    <div class="category-item" data-category="camera:${escapeHtml(model)}">
-                        <span class="emoji">📸</span> ${escapeHtml(model)}
-                        <span class="badge">${count}</span>
-                    </div>
-                `).join('');
-
-                // 重新綁定側邊欄點擊事件
-                bindSidebarEvents();
-            }
-
-            function bindSidebarEvents() {
-                $$('.sidebar .category-item').forEach(el => {
-                    el.onclick = (e) => {
-                        const cat = el.dataset.category;
-                        if (cat) {
-                            state.activeCategory = cat;
-                            state.activePhotoId = null;
-                            closeDetail();
-                            renderAll();
-                        }
-                    };
-                });
-            }
-
-            function renderPhotoGrid() {
-                const photos = getFilteredPhotos();
-                photoGrid.innerHTML = '';
-
-                if (photos.length === 0) {
-                    photoGrid.innerHTML = `
-                        <div class="empty-state">
-                            <span class="empty-icon">🔍</span>
-                            <h3>沒有符合的照片</h3>
-                            <p>試試調整篩選條件或上傳新的照片</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                photoGrid.classList.toggle('list-view', state.viewMode === 'list');
-
-                photos.forEach((photo, index) => {
-                    const card = createPhotoCard(photo, index);
-                    photoGrid.appendChild(card);
-                });
-
-                // 綁定拖曳事件
-                bindDragEvents();
-            }
-
-            function createPhotoCard(photo, index) {
-                const card = document.createElement('div');
-                card.className = 'photo-card';
-                card.dataset.photoId = photo.id;
-                card.dataset.index = index;
-                card.draggable = true;
-                if (state.activePhotoId === photo.id) {
-                    card.classList.add('selected');
-                }
-
-                const exif = photo.exif;
-                const cameraModel = exif?.Model || '';
-                const lensModel = exif?.LensModel || '';
-                const focalLength = exif?.FocalLength || exif?.FocalLengthIn35mmFormat || '';
-                const aperture = exif?.FNumber ? `f/${exif.FNumber}` : '';
-                const iso = exif?.ISO || '';
-                const dateStr = exif?.DateTimeOriginal || exif?.CreateDate || '';
-                const formattedDate = dateStr ? formatExifDate(dateStr) : '';
-
-                const thumbContent = photo.thumbnailUrl ?
-                    `<img src="${photo.thumbnailUrl}" alt="${escapeHtml(photo.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=font-size:3rem>🦜</span>'" />` :
-                    `<span style="font-size:3rem;">${photo.rawFormat ? '📷' : '🦜'}</span>`;
-
-                card.innerHTML = `
-                    <div class="card-thumb">
-                        ${thumbContent}
-                        ${photo.rawFormat ? `<span class="raw-badge">${escapeHtml(photo.rawFormat)}</span>` : ''}
-                        ${photo.category !== 'uncategorized' ? `<span class="classify-badge">🏷️ ${escapeHtml(photo.category)}</span>` : ''}
-                    </div>
-                    <div class="card-body">
-                        <div class="card-title">${escapeHtml(photo.name)}</div>
-                        <div class="card-meta">
-                            ${cameraModel ? `<span>📸 ${escapeHtml(cameraModel)}</span>` : ''}
-                            ${focalLength ? `<span>🔭 ${focalLength}mm</span>` : ''}
-                            ${aperture ? `<span>🔆 ${aperture}</span>` : ''}
-                            ${iso ? `<span>ISO ${iso}</span>` : ''}
-                            ${formattedDate ? `<span>📅 ${formattedDate}</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="drag-handle" title="拖曳移動">⋮⋮</div>
-                `;
-
-                card.addEventListener('click', (e) => {
-                    // 避免拖曳時觸發點擊
-                    if (card.classList.contains('dragging') || card.classList.contains(
-                            'drag-ghost')) return;
-                    state.activePhotoId = photo.id;
-                    updateDetailPanel();
-                    renderPhotoGrid();
-                });
-
-                return card;
-            }
-
-            function formatExifDate(dateStr) {
-                try {
-                    const d = new Date(dateStr);
-                    if (isNaN(d.getTime())) return dateStr;
-                    return d.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
-                } catch (e) {
-                    return dateStr;
-                }
-            }
-
-            // ==================== 拖曳功能 ====================
-            let draggedCard = null;
-            let dragSourceIndex = -1;
-
-            function bindDragEvents() {
-                const cards = photoGrid.querySelectorAll('.photo-card');
-                cards.forEach((card, index) => {
-                    card.addEventListener('dragstart', handleDragStart);
-                    card.addEventListener('dragend', handleDragEnd);
-                    card.addEventListener('dragover', handleCardDragOver);
-                    card.addEventListener('dragleave', handleCardDragLeave);
-                    card.addEventListener('drop', handleCardDrop);
-                });
-
-                // 側邊欄分類項目也綁定 drop 事件（在 renderSidebar 中已處理自訂分類）
-                $$('.sidebar .category-item[data-category="uncategorized"]').forEach(el => {
-                    el.ondragover = (e) => handleDragOver(e, 'uncategorized');
-                    el.ondragleave = handleDragLeave;
-                    el.ondrop = (e) => handleDropOnCategory(e, 'uncategorized');
-                });
-                // 也為 "全部照片" 以外的分類綁定（全部照片不接受 drop）
-                $$('.sidebar .category-item[data-category]').forEach(el => {
-                    if (el.dataset.category === 'all') return;
-                    if (!el.ondrop) {
-                        el.ondragover = (e) => handleDragOver(e, el.dataset.category);
-                        el.ondragleave = handleDragLeave;
-                        el.ondrop = (e) => handleDropOnCategory(e, el.dataset.category);
-                    }
-                });
-            }
-
-            function handleDragStart(e) {
-                const card = e.target.closest('.photo-card');
-                if (!card) return;
-                draggedCard = card;
-                dragSourceIndex = parseInt(card.dataset.index);
-                card.classList.add('dragging');
-                // 設定拖曳影像
-                const ghost = card.cloneNode(true);
-                ghost.classList.add('drag-ghost');
-                ghost.style.position = 'absolute';
-                ghost.style.top = '-9999px';
-                ghost.style.width = card.offsetWidth + 'px';
-                document.body.appendChild(ghost);
-                e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
-                setTimeout(() => document.body.removeChild(ghost), 0);
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', card.dataset.photoId);
-            }
-
-            function handleDragEnd(e) {
-                if (draggedCard) {
-                    draggedCard.classList.remove('dragging');
-                    draggedCard = null;
-                    dragSourceIndex = -1;
-                }
-                // 移除所有 drag-over 樣式
-                $$('.photo-card.drag-over-target').forEach(c => c.classList.remove('drag-over-target'));
-                $$('.sidebar .category-item.drag-over').forEach(c => c.classList.remove('drag-over'));
-            }
-
-            function handleCardDragOver(e) {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                const card = e.target.closest('.photo-card');
-                if (card && card !== draggedCard) {
-                    $$('.photo-card.drag-over-target').forEach(c => c.classList.remove(
-                    'drag-over-target'));
-                    card.classList.add('drag-over-target');
-                }
-            }
-
-            function handleCardDragLeave(e) {
-                const card = e.target.closest('.photo-card');
-                if (card) card.classList.remove('drag-over-target');
-            }
-
-            function handleCardDrop(e) {
-                e.preventDefault();
-                const targetCard = e.target.closest('.photo-card');
-                if (!targetCard || targetCard === draggedCard || !draggedCard) return;
-
-                const targetPhotoId = targetCard.dataset.photoId;
-                const draggedPhotoId = draggedCard.dataset.photoId;
-
-                // 在 state.photos 中交換位置
-                const filteredPhotos = getFilteredPhotos();
-                const draggedPhoto = filteredPhotos.find(p => p.id === draggedPhotoId);
-                const targetPhoto = filteredPhotos.find(p => p.id === targetPhotoId);
-
-                if (!draggedPhoto || !targetPhoto) return;
-
-                const globalDraggedIndex = state.photos.indexOf(draggedPhoto);
-                const globalTargetIndex = state.photos.indexOf(targetPhoto);
-
-                if (globalDraggedIndex >= 0 && globalTargetIndex >= 0) {
-                    // 移動到目標位置
-                    state.photos.splice(globalDraggedIndex, 1);
-                    const newTargetIndex = state.photos.indexOf(targetPhoto);
-                    state.photos.splice(newTargetIndex, 0, draggedPhoto);
-                }
-
-                targetCard.classList.remove('drag-over-target');
-                renderAll();
-                showToast('📸 照片已移動', 'success');
-            }
-
-            function handleDragOver(e, categoryName) {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                const el = e.target.closest('.category-item');
-                if (el) {
-                    $$('.sidebar .category-item.drag-over').forEach(c => c.classList.remove('drag-over'));
-                    el.classList.add('drag-over');
-                }
-            }
-
-            function handleDragLeave(e) {
-                const el = e.target.closest('.category-item');
-                if (el) el.classList.remove('drag-over');
-            }
-
-            function handleDropOnCategory(e, categoryName) {
-                e.preventDefault();
-                const el = e.target.closest('.category-item');
-                if (el) el.classList.remove('drag-over');
-
-                const photoId = e.dataTransfer.getData('text/plain');
-                if (!photoId || !categoryName) return;
-
-                const photo = state.photos.find(p => p.id === photoId);
-                if (!photo) return;
-
-                const oldCategory = photo.category;
-                photo.category = categoryName;
-
-                renderAll();
-                if (state.activePhotoId === photoId) {
-                    updateDetailPanelSelect();
-                }
-                showToast(`🏷️ 已分類至「${categoryName}」${oldCategory !== categoryName ? '（原：' + oldCategory + '）' : ''}`,
-                    'success');
-            }
-
-            // ==================== 詳情面板 ====================
-            function updateDetailPanel() {
-                const photo = state.photos.find(p => p.id === state.activePhotoId);
-                if (!photo) {
-                    closeDetail();
-                    return;
-                }
-
-                detailPanel.classList.remove('hidden');
-
-                // 圖片
-                if (photo.thumbnailUrl) {
-                    detailImage.innerHTML = `<img src="${photo.thumbnailUrl}" alt="${escapeHtml(photo.name)}" />`;
-                } else {
-                    detailImage.innerHTML =
-                        `<span style="color:#888;display:flex;align-items:center;justify-content:center;height:100%;">${photo.rawFormat ? '📷 RAW 檔案' : '🦜 無預覽'}</span>`;
-                }
-
-                // 分類選擇
-                updateDetailPanelSelect();
-                $('#detail-classify-select').value = photo.category || 'uncategorized';
-
-                // EXIF
-                renderExifInfo(photo);
-            }
-
-            function updateDetailPanelSelect() {
-                const select = $('#detail-classify-select');
-                const photo = state.photos.find(p => p.id === state.activePhotoId);
-                select.innerHTML = `
-                    <option value="uncategorized">❓ 未分類</option>
-                    ${state.customCategories.map(cat => `
-                        <option value="${escapeHtml(cat.name)}">${cat.emoji || '🐦'} ${escapeHtml(cat.name)}</option>
-                    `).join('')}
-                `;
-                if (photo) {
-                    select.value = photo.category || 'uncategorized';
-                }
-            }
-
-            function renderExifInfo(photo) {
-                const exif = photo.exif;
-                if (!exif || Object.keys(exif).length === 0) {
-                    exifContainer.innerHTML = '<div class="no-exif">📭 此照片無 EXIF 資料</div>';
-                    return;
-                }
-
-                const rows = [];
-                const addRow = (label, value) => {
-                    if (value !== null && value !== undefined && value !== '') {
-                        rows.push({ label, value: String(value) });
-                    }
-                };
-
-                addRow('📸 相機製造商', exif.Make);
-                addRow('📷 相機型號', exif.Model);
-                addRow('🔭 鏡頭', exif.LensModel);
-                addRow('📏 焦距', exif.FocalLength ? `${exif.FocalLength}mm` : (exif
-                    .FocalLengthIn35mmFormat ? `${exif.FocalLengthIn35mmFormat}mm (35mm等效)` : ''));
-                addRow('🔆 光圈', exif.FNumber ? `f/${exif.FNumber}` : (exif.ApertureValue ? `f/${exif.ApertureValue}` :
-                    ''));
-                addRow('⏱️ 快門速度', exif.ExposureTime ? `${exif.ExposureTime}s` : (exif.ShutterSpeedValue ? exif
-                    .ShutterSpeedValue : ''));
-                addRow('💡 ISO', exif.ISO);
-                addRow('📅 拍攝日期', exif.DateTimeOriginal || exif.CreateDate);
-                addRow('📐 影像尺寸',
-                    exif.ImageWidth && exif.ImageHeight ? `${exif.ImageWidth} × ${exif.ImageHeight}` : '');
-                addRow('⚡ 閃燈', exif.Flash);
-                addRow('🎯 測光模式', exif.MeteringMode);
-                addRow('🎬 曝光模式', exif.ExposureProgram);
-                addRow('🌈 白平衡', exif.WhiteBalance);
-                addRow('🧭 方向', exif.Orientation);
-
-                // GPS
-                if (exif.GPSLatitude !== undefined && exif.GPSLongitude !== undefined) {
-                    const lat = exif.GPSLatitude;
-                    const lon = exif.GPSLongitude;
-                    const latRef = exif.GPSLatitudeRef || (lat >= 0 ? 'N' : 'S');
-                    const lonRef = exif.GPSLongitudeRef || (lon >= 0 ? 'E' : 'W');
-                    addRow('📍 GPS 位置', `${Math.abs(lat).toFixed(5)}°${latRef}, ${Math.abs(lon).toFixed(5)}°${lonRef}`);
-                    if (lat && lon) {
-                        addRow('🗺️ 地圖連結',
-                            `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" style="color:var(--accent);">開啟 Google Maps</a>`
-                            );
-                    }
-                }
-
-                // RAW 格式
-                if (photo.rawFormat) {
-                    addRow('🎞️ RAW 格式', photo.rawFormat);
-                }
-
-                if (rows.length === 0) {
-                    exifContainer.innerHTML = '<div class="no-exif">📭 無可顯示的 EXIF 資料</div>';
-                    return;
-                }
-
-                exifContainer.innerHTML = rows.map(r => `
-                    <div class="exif-row">
-                        <span class="exif-label">${r.label}</span>
-                        <span class="exif-value">${r.value}</span>
-                    </div>
-                `).join('');
-            }
-
-            function updatePhotoCategory() {
-                const photo = state.photos.find(p => p.id === state.activePhotoId);
-                if (!photo) return;
-                const newCat = $('#detail-classify-select').value;
-                photo.category = newCat;
-                renderAll();
-                showToast(`🏷️ 已分類至「${newCat}」`, 'success');
-            }
-
-            function closeDetail() {
-                state.activePhotoId = null;
-                detailPanel.classList.add('hidden');
-                detailImage.innerHTML = '<span style="color:#888;">選擇照片查看詳情</span>';
-                exifContainer.innerHTML = '<div class="no-exif">點擊照片以讀取 EXIF 資料</div>';
-                renderPhotoGrid();
-            }
-
-            // ==================== 視圖 / 排序 ====================
-            function setView(mode) {
-                state.viewMode = mode;
-                $$('.view-toggle button').forEach(b => b.classList.toggle('active', b.dataset.view === mode));
-                renderPhotoGrid();
-            }
-
-            function applySort() {
-                state.sortMode = $('#sort-select').value;
-                renderPhotoGrid();
-            }
-
-            // ==================== 側邊欄切換 ====================
-            function toggleSidebar() {
-                if (window.innerWidth <= 600) {
-                    sidebar.classList.toggle('mobile-open');
-                } else {
-                    sidebar.classList.toggle('collapsed');
-                }
-            }
-
-            // ==================== 搜尋 ====================
-            searchInput.addEventListener('input', () => {
-                state.searchQuery = searchInput.value.trim();
-                renderPhotoGrid();
-                updateStats();
-            });
-
-            // ==================== 統計 ====================
-            function updateStats() {
-                const filtered = getFilteredPhotos();
-                photoCountSpan.textContent = state.photos.length;
-                if (state.searchQuery || state.activeCategory !== 'all') {
-                    statsPill.innerHTML = `📊 <span>${filtered.length}</span> / ${state.photos.length} 張`;
-                } else {
-                    statsPill.innerHTML = `📊 <span>${state.photos.length}</span> 張照片`;
-                }
-            }
-
-            // ==================== 分類管理 ====================
-            function showAddCategoryModal() {
-                modalOverlay.style.display = 'flex';
-                $('#new-category-name').value = '';
-                $('#new-category-emoji').value = '';
-                $('#new-category-name').focus();
-            }
-
-            function closeModal() {
-                modalOverlay.style.display = 'none';
-            }
-
-            function addCategory() {
-                const name = $('#new-category-name').value.trim();
-                const emoji = $('#new-category-emoji').value.trim();
-                if (!name) {
-                    showToast('請輸入分類名稱');
-                    return;
-                }
-                if (state.customCategories.find(c => c.name === name)) {
-                    showToast('此分類已存在');
-                    return;
-                }
-                state.customCategories.push({ name, emoji: emoji || '🐦' });
-                closeModal();
-                renderAll();
-                showToast(`✅ 已新增分類「${name}」`, 'success');
-            }
-
-            // ==================== Modal 點擊關閉 ====================
-            modalOverlay.addEventListener('click', (e) => {
-                if (e.target === modalOverlay) closeModal();
-            });
-            driveModalOverlay.addEventListener('click', (e) => {
-                if (e.target === driveModalOverlay) closeDriveModal();
-            });
-
-            // ==================== 鍵盤快捷鍵 ====================
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    closeDetail();
-                    closeModal();
-                    closeDriveModal();
-                }
-                if (e.ctrlKey && e.key === 'o') {
-                    e.preventDefault();
-                    fileInput.click();
-                }
-            });
-
-            // ==================== 檔案上傳監聽 ====================
-            fileInput.addEventListener('change', async () => {
-                if (fileInput.files.length > 0) {
-                    await handleFiles(fileInput.files);
-                    fileInput.value = '';
-                }
-            });
-
-            // ==================== 頁面拖放上傳 ====================
-            document.addEventListener('dragover', (e) => {
-                // 只在檔案拖放到頁面時顯示效果
-                if (e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
-                    e.preventDefault();
-                }
-            });
-
-            document.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    // 檢查是否拖放到側邊欄（分類操作）
-                    const onSidebar = e.target.closest('.sidebar');
-                    if (onSidebar) return; // 由側邊欄處理
-
-                    // 檢查是否拖放到網格區域（排序操作）
-                    const onGrid = e.target.closest('.photo-grid');
-                    if (onGrid && e.dataTransfer.types.includes('Files') === false) return;
-
-                    // 否則當作新檔案上傳
-                    const imageFiles = Array.from(files).filter(f =>
-                        f.type.startsWith('image/') ||
-                        f.name.match(
-                            /\.(arw|cr2|cr3|nef|dng|orf|rw2|pef|raf|srw|jpg|jpeg|png|heic|tiff|tif)$/i)
-                    );
-                    if (imageFiles.length > 0) {
-                        await handleFiles(imageFiles);
-                    }
-                }
-            });
-
-            // ==================== 初始化 ====================
-            function init() {
-                loadState();
-                // 清除可能失效的 blob URLs（重新整理後）
-                state.photos.forEach(p => {
-                    if (p.thumbnailUrl && p.thumbnailUrl.startsWith('blob:') && !p.fileRef) {
-                        p.thumbnailUrl = null;
-                    }
-                });
-                renderAll();
-                bindSidebarEvents();
-                updateStats();
-                console.log('🦜 鳥類圖鑑初始化完成');
-                console.log('   📸 支援格式：JPEG, PNG, HEIC, TIFF, ARW(索尼), CR2/CR3(佳能), NEF, DNG 等');
-                console.log('   🖱️ 拖曳照片到側邊欄分類即可歸類');
-                console.log('   🔗 點擊「連接 Google Drive」載入雲端照片');
-                console.log('   📁 點擊「上傳照片」或直接拖放檔案到頁面');
-            }
-
-            // ==================== 全局函數暴露 ====================
-            window.toggleSidebar = toggleSidebar;
-            window.setView = setView;
-            window.applySort = applySort;
-            window.closeDetail = closeDetail;
-            window.showAddCategoryModal = showAddCategoryModal;
-            window.closeModal = closeModal;
-            window.addCategory = addCategory;
-            window.connectGoogleDrive = connectGoogleDrive;
-            window.closeDriveModal = closeDriveModal;
-            window.loadFromDrive = loadFromDrive;
-            window.updatePhotoCategory = updatePhotoCategory;
-            window.handleDragOver = handleDragOver;
-            window.handleDragLeave = handleDragLeave;
-            window.handleDropOnCategory = handleDropOnCategory;
-
-            // 啟動
-            init();
-        })();
-
-        function escapeHtml(str) {
-            if (!str) return '';
-            const div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
+    <div class="detail-section">
+      <select id="detailCat" onchange="changeCategory()"><option value="uncategorized">未分類</option></select>
+      <button class="btn danger" style="margin-top:8px;" onclick="deletePhoto()">🗑️ 刪除照片（僅本地）</button>
+    </div>
+    <div class="detail-section" id="exifInfo">點擊照片查看 EXIF</div>
+  </aside>
+</div>
+
+<script>
+(function() {
+  // ========== 設定區 (請換成你的 OAuth 2.0 用戶端 ID) ==========
+  const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com'; // 👈 務必更換！
+  const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+  // ========== 全域狀態 ==========
+  let state = {
+    photos: [],
+    customCategories: [],   // { name, driveFolderId }
+    cameraFilters: [],
+    lensFilters: [],
+    activeCat: 'all',
+    activePhotoId: null,
+    accessToken: null,
+    user: null,
+    selectedIds: new Set()
+  };
+
+  // 暫存本機檔案物件 (供下載/查看原始檔)
+  const localFileStore = new Map(); // id -> { blobUrl, fileName }
+
+  // ========== localStorage ==========
+  const STORAGE_KEY = 'birdGuide_oauth_fixed';
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      photosMeta: state.photos.map(p => ({
+        id:p.id, name:p.name, category:p.category, exif:p.exif, rawFormat:p.rawFormat,
+        dateAdded:p.dateAdded, thumbUrl:p.thumbUrl, fileName:p.fileName,
+        fileSize:p.fileSize, isRaw:p.isRaw, driveFileId:p.driveFileId
+      })),
+      customCategories: state.customCategories,
+      cameraFilters: state.cameraFilters,
+      lensFilters: state.lensFilters
+    }));
+  }
+  function load() {
+    let s = localStorage.getItem(STORAGE_KEY);
+    if(s) {
+      let d = JSON.parse(s);
+      state.customCategories = d.customCategories || [];
+      state.cameraFilters = d.cameraFilters || [];
+      state.lensFilters = d.lensFilters || [];
+      state.photos = (d.photosMeta||[]).map(p => ({...p, fileRef:null}));
+    }
+  }
+
+  // ========== OAuth 2.0 初始化 ==========
+  let tokenClient;
+  function initGapi() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: async (tokenResponse) => {
+        if (tokenResponse.error) {
+          alert('授權失敗：' + tokenResponse.error);
+          return;
         }
-    </script>
+        state.accessToken = tokenResponse.access_token;
+        // 取得使用者資訊
+        try {
+          let res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: 'Bearer ' + state.accessToken }
+          });
+          state.user = await res.json();
+          updateLoginUI();
+          alert('登入成功！歡迎 ' + state.user.name);
+        } catch(e) {
+          console.error('取得使用者資訊失敗', e);
+        }
+      },
+    });
+  }
+
+  // 全域登入/登出/切換按鈕
+  window.handleAuthClick = function() {
+    if (state.accessToken) {
+      let logout = confirm('已登入。\n按「確定」登出，按「取消」切換帳戶。');
+      if (logout) {
+        revokeToken();
+      } else {
+        revokeToken();
+        setTimeout(() => tokenClient.requestAccessToken({ prompt: 'select_account' }), 500);
+      }
+    } else {
+      tokenClient.requestAccessToken({ prompt: '' });
+    }
+  };
+
+  function revokeToken() {
+    if (state.accessToken) {
+      google.accounts.oauth2.revoke(state.accessToken, () => {});
+      state.accessToken = null;
+      state.user = null;
+      updateLoginUI();
+    }
+  }
+
+  function updateLoginUI() {
+    let area = document.getElementById('userArea');
+    if (state.user) {
+      area.innerHTML = `
+        <img class="user-avatar" src="${state.user.picture}" alt="">
+        <span style="font-size:0.8rem;">${state.user.name}</span>
+        <button class="user-btn" onclick="handleAuthClick()">登出 / 切換帳戶</button>
+      `;
+    } else {
+      area.innerHTML = `<button class="btn primary" id="loginBtn" onclick="handleAuthClick()">🔐 登入 Google</button>`;
+    }
+  }
+
+  // ========== Drive API 工具 ==========
+  function getAuthHeaders() {
+    return state.accessToken ? { 'Authorization': 'Bearer ' + state.accessToken } : {};
+  }
+
+  async function driveRequest(url, options = {}) {
+    let headers = { ...options.headers, ...getAuthHeaders() };
+    let res = await fetch(url, { ...options, headers });
+    if (!res.ok) {
+      let err = await res.json().catch(()=>({}));
+      throw new Error(err.error?.message || res.statusText);
+    }
+    return res.json();
+  }
+
+  // 確保「鳥類圖鑑」主資料夾存在
+  async function ensureRootFolder() {
+    let q = "name='鳥類圖鑑' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+    let res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`);
+    if (res.files && res.files.length > 0) return res.files[0].id;
+    let metadata = { name: '鳥類圖鑑', mimeType: 'application/vnd.google-apps.folder' };
+    let folder = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(metadata)
+    });
+    return folder.id;
+  }
+
+  // 建立分類子資料夾
+  async function createCategoryFolder(catName) {
+    let rootId = await ensureRootFolder();
+    let metadata = { name: catName, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] };
+    let folder = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(metadata)
+    });
+    return folder.id;
+  }
+
+  // 上傳檔案
+  async function uploadFileToDrive(file, parentId) {
+    let metadata = { name: file.name, parents: [parentId] };
+    let form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', file);
+    let res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: form
+    });
+    if (!res.ok) throw new Error('上傳失敗');
+    let data = await res.json();
+    return data.id;
+  }
+
+  // 移動檔案
+  async function moveFileToFolder(fileId, fromFolderId, toFolderId) {
+    let params = new URLSearchParams({ addParents: toFolderId, removeParents: fromFolderId || '' });
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?${params}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders()
+    });
+  }
+
+  // ========== EXIF / RAW 工具 ==========
+  async function readExif(file) {
+    try {
+      return await exifr.parse(file, {
+        pick:['Make','Model','LensModel','FocalLength','FNumber','ExposureTime','ISO','DateTimeOriginal','CreateDate'],
+        reviveValues:true
+      });
+    } catch(e) { return null; }
+  }
+
+  function formatShutterSpeed(sec) {
+    if(!sec && sec!==0) return '';
+    let s = parseFloat(sec);
+    if(isNaN(s)) return sec+'s';
+    if(s >= 1) return s + ' 秒';
+    let denom = Math.round(1/s);
+    if(Math.abs(s - 1/denom) < 0.001) return `1/${denom} 秒`;
+    return s.toFixed(4).replace(/0+$/,'') + ' 秒';
+  }
+
+  function getRawFormat(fn) {
+    let ext = fn.split('.').pop().toLowerCase();
+    let map = { arw:'SONY ARW', cr2:'Canon CR2', cr3:'Canon CR3', nef:'Nikon NEF', dng:'Adobe DNG' };
+    return map[ext] || null;
+  }
+
+  async function extractRawThumb(file) {
+    try {
+      let t = await exifr.thumbnail(file);
+      if(t) { let b = new Blob([t],{type:'image/jpeg'}); return URL.createObjectURL(b); }
+    } catch(e){}
+    return null;
+  }
+
+  // ========== 照片處理 ==========
+  async function handleUpload(files) {
+    if (!state.accessToken) { alert('請先登入 Google'); return; }
+    let rootId = await ensureRootFolder();
+    for(let f of files) {
+      let id = genId(), raw = getRawFormat(f.name), isRaw = !!raw;
+      let exif = await readExif(f);
+      let thumb = isRaw ? await extractRawThumb(f) : (f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
+      let driveFileId;
+      try {
+        driveFileId = await uploadFileToDrive(f, rootId);
+      } catch(e) {
+        alert(`上傳 ${f.name} 失敗：${e.message}`);
+        continue;
+      }
+      let photo = {
+        id, name:f.name, category:'uncategorized', thumbUrl:thumb,
+        fileRef:f, exif, rawFormat:raw, isRaw, dateAdded:new Date().toISOString(),
+        fileName:f.name, fileSize:f.size, driveFileId
+      };
+      state.photos.push(photo);
+      localFileStore.set(id, { blobUrl: URL.createObjectURL(f), fileName: f.name });
+    }
+    save(); renderAll();
+  }
+
+  // 新增分類 (雲端建立資料夾)
+  window.addCategory = async function() {
+    if (!state.accessToken) { alert('請先登入 Google'); return; }
+    let name = prompt('輸入分類名稱：');
+    if(!name) return;
+    if(state.customCategories.find(c=>c.name===name)) { alert('分類已存在'); return; }
+    try {
+      let folderId = await createCategoryFolder(name);
+      state.customCategories.push({ name, driveFolderId: folderId });
+      save(); renderAll();
+    } catch(e) { alert('建立失敗：'+e.message); }
+  };
+
+  // 移動照片至分類 (雲端搬移)
+  async function movePhotoToCategory(photoId, targetCat) {
+    let photo = state.photos.find(p=>p.id===photoId);
+    if(!photo) return;
+    let oldCat = photo.category;
+    if(oldCat === targetCat) return;
+    if(photo.driveFileId && state.accessToken) {
+      try {
+        let fromId = oldCat==='uncategorized' ? await ensureRootFolder() : state.customCategories.find(c=>c.name===oldCat)?.driveFolderId;
+        let toId = targetCat==='uncategorized' ? await ensureRootFolder() : state.customCategories.find(c=>c.name===targetCat)?.driveFolderId;
+        if(toId) await moveFileToFolder(photo.driveFileId, fromId, toId);
+      } catch(e) { alert('雲端移動失敗：'+e.message); return; }
+    }
+    photo.category = targetCat;
+    save(); renderAll();
+  }
+
+  // 拖放接收
+  function setupSidebarDrop() {
+    document.querySelectorAll('.sidebar .cat-item').forEach(el => {
+      el.addEventListener('dragover', e => e.preventDefault());
+      el.addEventListener('drop', e => {
+        e.preventDefault();
+        let photoId = e.dataTransfer.getData('text/plain');
+        let targetCat = el.dataset.cat;
+        if(targetCat && targetCat !== 'all' && !targetCat.startsWith('camera:') && !targetCat.startsWith('lens:')) {
+          movePhotoToCategory(photoId, targetCat);
+        }
+      });
+    });
+  }
+
+  // 網格內拖曳排序
+  function movePhotoInGrid(fromId, toId) {
+    let fromIdx = state.photos.findIndex(p=>p.id===fromId);
+    let toIdx = state.photos.findIndex(p=>p.id===toId);
+    if(fromIdx!==-1 && toIdx!==-1) {
+      state.photos.splice(toIdx, 0, state.photos.splice(fromIdx,1)[0]);
+      save(); renderGrid();
+    }
+  }
+
+  function genId() { return 'p_'+Date.now()+'_'+Math.random().toString(36); }
+  function getPhotoDate(p) {
+    if(p.exif?.DateTimeOriginal) return new Date(p.exif.DateTimeOriginal);
+    if(p.exif?.CreateDate) return new Date(p.exif.CreateDate);
+    return new Date(p.dateAdded);
+  }
+
+  // 篩選與排序
+  function getFilteredPhotos() {
+    let q = document.getElementById('searchInput').value.trim();
+    let arr = [...state.photos];
+    if(state.activeCat === 'uncategorized') arr = arr.filter(p=>p.category==='uncategorized');
+    else if(state.activeCat.startsWith('camera:')) arr = arr.filter(p=>p.exif?.Model===state.activeCat.replace('camera:',''));
+    else if(state.activeCat.startsWith('lens:')) arr = arr.filter(p=>p.exif?.LensModel===state.activeCat.replace('lens:',''));
+    else if(state.activeCat !== 'all' && !state.activeCat.startsWith('camera:') && !state.activeCat.startsWith('lens:'))
+      arr = arr.filter(p=>p.category===state.activeCat);
+    if(q) {
+      let range = q.match(/(\d{4}-\d{2}-\d{2})\s*(至|\.\.)\s*(\d{4}-\d{2}-\d{2})/);
+      if(range) {
+        let s = new Date(range[1]), e=new Date(range[3]);
+        if(!isNaN(s)&&!isNaN(e)) arr = arr.filter(p=>{ let d=getPhotoDate(p); return d>=s&&d<=e; });
+      } else if(/^\d{4}$/.test(q)) {
+        let y = parseInt(q);
+        arr = arr.filter(p=>getPhotoDate(p).getFullYear()===y);
+      } else if(/^(\d{4})-(\d{2})$/.test(q)) {
+        let m = q.match(/^(\d{4})-(\d{2})$/), year=parseInt(m[1]), month=parseInt(m[2]);
+        arr = arr.filter(p=>{ let d=getPhotoDate(p); return d.getFullYear()===year && d.getMonth()+1===month; });
+      } else {
+        let lq = q.toLowerCase();
+        arr = arr.filter(p=>p.name.toLowerCase().includes(lq)||(p.exif?.Model||'').toLowerCase().includes(lq)||(p.exif?.LensModel||'').toLowerCase().includes(lq));
+      }
+    }
+    let sort = document.getElementById('sortSelect').value;
+    if(sort==='date-desc') arr.sort((a,b)=>new Date(b.dateAdded)-new Date(a.dateAdded));
+    else if(sort==='date-asc') arr.sort((a,b)=>new Date(a.dateAdded)-new Date(b.dateAdded));
+    else if(sort==='name') arr.sort((a,b)=>a.name.localeCompare(b.name));
+    return arr;
+  }
+
+  // ========== 網格渲染 ==========
+  function renderGrid() {
+    let grid = document.getElementById('photoGrid');
+    grid.innerHTML = '';
+    let photos = getFilteredPhotos();
+    photos.forEach((p, idx) => {
+      let card = document.createElement('div');
+      card.className = 'card' + (state.selectedIds.has(p.id)?' selected':'');
+      card.draggable = true;
+      card.dataset.id = p.id;
+      card.dataset.index = idx;
+      card.addEventListener('click', (e)=>{
+        if(e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          if(state.selectedIds.has(p.id)) state.selectedIds.delete(p.id);
+          else state.selectedIds.add(p.id);
+          updateSelectionUI();
+          card.classList.toggle('selected');
+        } else {
+          if(!e.target.closest('.del-btn')) openDetail(p.id);
+        }
+      });
+      card.addEventListener('dragstart', e=>{
+        e.dataTransfer.setData('text/plain', p.id);
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', ()=>card.classList.remove('dragging'));
+      card.addEventListener('dragover', e=>e.preventDefault());
+      card.addEventListener('drop', e=>{
+        e.preventDefault();
+        let fromId = e.dataTransfer.getData('text/plain');
+        let toId = p.id;
+        if(fromId && toId && fromId!==toId) movePhotoInGrid(fromId, toId);
+      });
+      let thumbHTML = p.thumbUrl
+        ? `<img src="${p.thumbUrl}" alt="">`
+        : (p.isRaw
+            ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:#f0e9d8;"><span style="font-size:2rem;">📷</span><span style="font-size:0.7rem;">${p.rawFormat||'RAW'}</span></div>`
+            : '<span>🦜</span>');
+      card.innerHTML = `
+        <div class="thumb">${thumbHTML}${p.isRaw?`<span class="raw-badge">${p.rawFormat||'RAW'}</span>`:''}</div>
+        <div class="info">
+          <div class="title">${p.name}</div>
+          <div class="meta">${p.exif?.Model||''} ${p.exif?.FocalLength?p.exif.FocalLength+'mm':''}</div>
+        </div>
+        <div class="del-btn" onclick="event.stopPropagation(); window.deletePhotoById('${p.id}')">✕</div>`;
+      grid.appendChild(card);
+    });
+  }
+
+  // 多選 UI
+  function updateSelectionUI() {
+    let c = state.selectedIds.size;
+    document.getElementById('multiActions').style.display = c>0?'flex':'none';
+    document.getElementById('selectedCount').textContent = `已選${c}張`;
+  }
+  window.clearSelection = ()=>{ state.selectedIds.clear(); updateSelectionUI(); renderGrid(); };
+  window.copySelectedLinks = ()=>{
+    let links = [];
+    state.selectedIds.forEach(id=>{
+      let p = state.photos.find(ph=>ph.id===id);
+      if(p) {
+        if(p.fileRef) links.push(p.fileName);
+        else if(p.driveFileId) links.push(`https://drive.google.com/file/d/${p.driveFileId}/view`);
+      }
+    });
+    if(links.length) navigator.clipboard.writeText(links.join('\n')).then(()=>alert('已複製'));
+  };
+  window.batchMoveCategory = ()=>{
+    let cat = prompt('輸入分類名稱（留空為未分類）：')?.trim() || 'uncategorized';
+    state.selectedIds.forEach(id=>{ let p = state.photos.find(ph=>ph.id===id); if(p) p.category = cat; });
+    state.selectedIds.clear(); updateSelectionUI(); save(); renderAll();
+  };
+
+  // 詳情面板
+  function openDetail(id) {
+    state.activePhotoId = id;
+    let p = state.photos.find(ph=>ph.id===id);
+    if(!p) return;
+    document.getElementById('detailPanel').classList.remove('hidden');
+    document.getElementById('detailName').value = p.name;
+    document.getElementById('detailImg').src = p.thumbUrl || '';
+    let view = document.getElementById('originalView'), down = document.getElementById('originalDownload');
+    if(p.fileRef) {
+      let url = localFileStore.get(id)?.blobUrl || URL.createObjectURL(p.fileRef);
+      view.href = url; down.href = url; down.download = p.fileName;
+    } else if(p.driveFileId && state.accessToken) {
+      let url = `https://www.googleapis.com/drive/v3/files/${p.driveFileId}?alt=media&access_token=${state.accessToken}`;
+      view.href = url; down.href = url; down.download = p.fileName;
+    } else if(p.driveFileId) {
+      view.href = `https://drive.google.com/file/d/${p.driveFileId}/view`;
+      down.removeAttribute('href');
+    }
+    let sel = document.getElementById('detailCat');
+    sel.innerHTML = '<option value="uncategorized">未分類</option>'+state.customCategories.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+    sel.value = p.category;
+    let exifDiv = document.getElementById('exifInfo');
+    if(p.exif) {
+      let rows = [];
+      if(p.exif.Make) rows.push(`<div class="exif-row"><span>製造商</span><span>${p.exif.Make}</span></div>`);
+      if(p.exif.Model) rows.push(`<div class="exif-row"><span>相機型號</span><span>${p.exif.Model}</span></div>`);
+      if(p.exif.LensModel) rows.push(`<div class="exif-row"><span>鏡頭</span><span>${p.exif.LensModel}</span></div>`);
+      if(p.exif.FocalLength) rows.push(`<div class="exif-row"><span>焦距</span><span>${p.exif.FocalLength}mm</span></div>`);
+      if(p.exif.FNumber) rows.push(`<div class="exif-row"><span>光圈</span><span>f/${p.exif.FNumber}</span></div>`);
+      if(p.exif.ExposureTime!==undefined) rows.push(`<div class="exif-row"><span>快門</span><span>${formatShutterSpeed(p.exif.ExposureTime)}</span></div>`);
+      if(p.exif.ISO) rows.push(`<div class="exif-row"><span>ISO</span><span>${p.exif.ISO}</span></div>`);
+      if(p.exif.DateTimeOriginal||p.exif.CreateDate) rows.push(`<div class="exif-row"><span>拍攝日期</span><span>${p.exif.DateTimeOriginal||p.exif.CreateDate}</span></div>`);
+      exifDiv.innerHTML = rows.join('') || '無 EXIF 資料';
+    } else exifDiv.innerHTML = '無 EXIF 資料';
+  }
+
+  window.closeDetail = ()=>{ document.getElementById('detailPanel').classList.add('hidden'); state.activePhotoId = null; };
+  window.renamePhoto = ()=>{
+    let p = state.photos.find(ph=>ph.id===state.activePhotoId);
+    if(p) { p.name = document.getElementById('detailName').value.trim() || p.name; save(); renderAll(); }
+  };
+  window.changeCategory = ()=>{
+    let p = state.photos.find(ph=>ph.id===state.activePhotoId);
+    if(p) { p.category = document.getElementById('detailCat').value; save(); renderAll(); }
+  };
+  window.deletePhoto = ()=>{
+    let p = state.photos.find(ph=>ph.id===state.activePhotoId);
+    if(p) { state.photos = state.photos.filter(ph=>ph.id!==p.id); state.selectedIds.delete(p.id); closeDetail(); save(); renderAll(); }
+  };
+  window.deletePhotoById = (id)=>{
+    state.photos = state.photos.filter(p=>p.id!==id);
+    state.selectedIds.delete(id);
+    if(state.activePhotoId===id) closeDetail();
+    save(); renderAll();
+  };
+  window.copyImageToClipboard = async ()=>{
+    let p = state.photos.find(ph=>ph.id===state.activePhotoId);
+    if(!p) return;
+    try {
+      let blob;
+      if(p.fileRef) blob = p.fileRef;
+      else if(p.driveFileId && state.accessToken) {
+        let res = await fetch(`https://www.googleapis.com/drive/v3/files/${p.driveFileId}?alt=media&access_token=${state.accessToken}`);
+        blob = await res.blob();
+      }
+      if(blob) {
+        await navigator.clipboard.write([new ClipboardItem({[blob.type]: blob})]);
+        alert('已複製圖片');
+      }
+    } catch(e) { alert('複製失敗'); }
+  };
+
+  // 側邊欄
+  function renderSidebar() {
+    document.getElementById('countAll').textContent = state.photos.length;
+    document.getElementById('countUncat').textContent = state.photos.filter(p=>p.category==='uncategorized').length;
+    let customDiv = document.getElementById('customCats');
+    customDiv.innerHTML = state.customCategories.map(cat => {
+      let cnt = state.photos.filter(p=>p.category===cat.name).length;
+      return `<div class="cat-item" data-cat="${cat.name}"><span>🐦 ${cat.name}</span><span class="count">${cnt}</span><span class="del-cat" onclick="event.stopPropagation(); window.deleteCategory('${cat.name}')">✕</span></div>`;
+    }).join('');
+    let camDiv = document.getElementById('cameraList');
+    let cams = [...new Set(state.photos.map(p=>p.exif?.Model).filter(Boolean))];
+    state.cameraFilters.forEach(f=>{if(!cams.includes(f)) cams.push(f)});
+    camDiv.innerHTML = cams.map(m=>`<div class="cat-item" data-cat="camera:${m}">📷 ${m}</div>`).join('');
+    let lensDiv = document.getElementById('lensList');
+    let lenses = [...new Set(state.photos.map(p=>p.exif?.LensModel).filter(Boolean))];
+    state.lensFilters.forEach(f=>{if(!lenses.includes(f)) lenses.push(f)});
+    lensDiv.innerHTML = lenses.map(l=>`<div class="cat-item" data-cat="lens:${l}">🔭 ${l}</div>`).join('');
+    document.querySelectorAll('.sidebar .cat-item').forEach(el=>{
+      el.onclick = (e)=>{
+        if(e.target.closest('.del-cat')) return;
+        state.activeCat = el.dataset.cat;
+        document.querySelectorAll('.cat-item').forEach(c=>c.classList.remove('active'));
+        el.classList.add('active');
+        renderGrid();
+      };
+    });
+    setupSidebarDrop();
+  }
+
+  window.deleteCategory = (name)=>{
+    state.customCategories = state.customCategories.filter(c=>c.name!==name);
+    state.photos.forEach(p=>{if(p.category===name) p.category='uncategorized';});
+    save(); renderAll();
+  };
+  window.addFilter = (type)=>{
+    let name = prompt(`輸入要新增的${type==='camera'?'相機':'鏡頭'}型號：`);
+    if(name) {
+      if(type==='camera') state.cameraFilters.push(name);
+      else state.lensFilters.push(name);
+      save(); renderAll();
+    }
+  };
+
+  // 日期區間
+  document.getElementById('dateBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    document.getElementById('datePopup').style.display = 'block';
+  });
+  window.applyDateRange = ()=>{
+    let s = document.getElementById('dateStart').value, e = document.getElementById('dateEnd').value;
+    if(s&&e) document.getElementById('searchInput').value = s+' 至 '+e;
+    else if(s) document.getElementById('searchInput').value = s;
+    else if(e) document.getElementById('searchInput').value = e;
+    document.getElementById('datePopup').style.display = 'none';
+    renderGrid();
+  };
+  window.clearDateRange = ()=>{
+    document.getElementById('dateStart').value=''; document.getElementById('dateEnd').value='';
+    document.getElementById('searchInput').value=''; document.getElementById('datePopup').style.display='none';
+    renderGrid();
+  };
+  document.addEventListener('click', (e)=>{
+    if(!e.target.closest('.date-popup') && !e.target.closest('.date-btn'))
+      document.getElementById('datePopup').style.display = 'none';
+  });
+
+  function renderAll() { renderSidebar(); renderGrid(); updateSelectionUI(); }
+
+  // 初始化
+  window.addEventListener('load', () => {
+    load();
+    initGapi();
+    updateLoginUI();
+    renderAll();
+    document.getElementById('fileInput').onchange = e => {
+      if(e.target.files.length) { handleUpload(e.target.files); e.target.value = ''; }
+    };
+    document.getElementById('searchInput').oninput = renderGrid;
+    window.addEventListener('dragover', e => e.preventDefault());
+    window.addEventListener('drop', e => {
+      e.preventDefault();
+      if(e.dataTransfer.files.length) handleUpload(e.dataTransfer.files);
+    });
+  });
+})();
+</script>
 </body>
 </html>
